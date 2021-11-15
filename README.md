@@ -1,4 +1,6 @@
 # Ball-kour Bounce!
 
-This is a simple parkour style bounce game written in vanilla
-JavaScript using HTML5 canvas.
+This. Is a bucket.
+_Dear God_
+There's more.
+**NO!**
