@@ -49,10 +49,14 @@ class KeyboardState {
 };  
 
 class Bal {
-    constructor() {
+    /**
+     * @param {Array<SafePlatform>} [platforms]
+     */
+    constructor(platforms) {
+        this.platforms= platforms;
         this.X = canvas.width * .15;
         this.yLastBounce=0;
-        this.Y = -400;
+        this.Y = -10;
         //this.speed = 10;
         this.bounceTime = 1750;
         this.timeSinceLastBounce= 0;
@@ -70,15 +74,22 @@ class Bal {
         let ef = parabollicEasing(this.timeSinceLastBounce/this.bounceTime)
         this.Y = this.yLastBounce - this.maxBounceHeight * ef;
 
-        if(this.Y+this.radius >= canvas.height) {
-            this.timeSinceLastBounce=0;
-            this.yLastBounce = this.Y;
-        }
+        this.platforms.forEach((platforms) => {
+            let isPlatformBelow = this.X >= platforms.x && this.X <= platforms.x + platforms.width
+       
+            if(isMovingDown && isPlatformBelow && this.Y+this.radius >= platforms.y) {
+                this.timeSinceLastBounce=0;
+                this.yLastBounce = this.Y;
+            }
+            
+        });
 
-        // if(!isMovingDown && 
-        //     this.Y <= this.yLastBounce-this.maxBounceHeight) {
-        //     // this.speed *= -1;
-        // }
+        /*if(this.Y >= 700) {
+            this.Y -= 700
+        } else if(this.Y != 700) {
+
+        }*/
+        
     }
 
     render() {
@@ -175,9 +186,85 @@ class Tracer {
     
 }
 
-let player = new Bal(); 
+class SafePlatform {
+    /**
+     * @param {Game} g
+     */
+    constructor(g) {
+        this.game = g;
+        this.width = 450;
+        this.height = 32;
+    
+        this.x = 0;
+        this.y = canvas.height - this.height * 1.5;
+
+        this.isVisible = true;
+    }
+
+
+
+/**
+     * @param {number} timeElapsed
+     */
+update(timeElapsed) {
+    this.x -= this.game.speed;
+    this.isVisible = this.x + this.width > 0;
+}
+
+render() {
+    ctx.save();
+    ctx.fillStyle = "hsl(0, 10%, 10%)";
+    ctx.fillRect(this.x, this.y, this.width, this.height) 
+    ctx.restore();
+}
+
+}
+
+class ScorePlatform {
+    /**
+     * @param {Game} g
+     */
+    constructor(g) {
+        this. game = g;
+        this.height = canvas.height;
+        this.width = 32;
+
+        this.x = 2;
+        this.y = canvas.height /2;
+
+        this.isVisible = true;
+
+        this.isScored = false;
+    }
+    /**
+     * @param {number} timeElapsed
+     */
+update(timeElapsed) {
+    this.x -= this.game.speed;
+    this.isVisible = this.x + this.width > 0;
+}
+
+render() {
+    ctx.save();
+    ctx.fillStyle = "hsl(120, 100%, 50%)";
+    ctx.fillRect(this.x, this.y, this.width, this.height) 
+    ctx.restore();
+    }
+}
+
 let kb= new KeyboardState();
 let game= new Game(kb);
+
+let p1 = new ScorePlatform(game);
+let p2 = new ScorePlatform(game);
+let p3 = new ScorePlatform(game);
+
+p1.x = 400 + 75;
+p2.x = p1.x + 120
+p3.x = p2.x + 135
+
+let platforms = [new SafePlatform(game), p1, p2, p3]
+let player = new Bal(platforms); 
 let tracers = [new Tracer(player, game)]
 
 
@@ -199,6 +286,11 @@ function gameLoop(timestamp) {
     tracers.forEach((t) => {
         t.update(timeElapsed);
         t.render();
+    })
+
+    platforms.forEach((p) => {
+        p.update(timeElapsed);
+        p.render();
     })
 
     player.update(timeElapsed);
