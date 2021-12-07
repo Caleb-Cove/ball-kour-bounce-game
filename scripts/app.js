@@ -6,9 +6,12 @@ const ctx = canvas.getContext('2d');
 canvas.width = 1200;
 canvas.height = 700;
 
+/**
+ * @param {number} pt
+ */
 function parabollicEasing(pt) {
     let x = pt * 4 - 2;
-    let y= x * x*-1 +4; //((x^2)*-1) +4
+    let y= x * x*-1 +4; 
     return y/4;
 }
 
@@ -23,7 +26,7 @@ class KeyboardState {
         window.addEventListener("keydown", (e) => {
             switch (e.key) {
                 case "a":
-                case "ArrowLeft":
+                case "ArrowDown":
                     this.isBraking = true;
                     break;
                 case "d":
@@ -35,7 +38,7 @@ class KeyboardState {
         window.addEventListener("keyup", (e) => {
             switch (e.key) {
                 case "a":
-                case "ArrowLeft":
+                case "ArrowDown":
                     this.isBraking = false;
                     break;
                 case "d":
@@ -57,15 +60,22 @@ class Bal {
         this.X = canvas.width * .15;
         this.yLastBounce=0;
         this.Y = -10;
-        //this.speed = 10;
+        this.preY = 0;
+        this.radius = 20;
+
+        this.leftSide = this.X - this.radius / 2;
+        this.rightSide = this.X + this.radius /2
+
         this.bounceTime = 1750;
         this.timeSinceLastBounce= 0;
-        this.radius = 20;
         this.maxBounceHeight=canvas.height/2;
         
     }
 
 
+    /**
+     * @param {number} timeElapsed
+     */
     update(timeElapsed) {
         this.timeSinceLastBounce+=timeElapsed;
         const isMovingDown = this.timeSinceLastBounce > this.bounceTime/2;
@@ -75,29 +85,34 @@ class Bal {
         this.Y = this.yLastBounce - this.maxBounceHeight * ef;
 
         this.platforms.forEach((platforms) => {
-            let isPlatformBelow = this.X >= platforms.x && this.X <= platforms.x + platforms.width
-       
-            if(isMovingDown && isPlatformBelow && this.Y+this.radius >= platforms.y) {
+            let inside = this.rightSide >= platforms.x && this.leftSide <= platforms.x + platforms.width
+            let platformBelow = inside && (this.Y < platforms.x || this.preY <platforms.y)
+
+            if(isMovingDown && inside && this.Y+this.radius >= platforms.y) {
                 this.timeSinceLastBounce=0;
-                this.yLastBounce = this.Y;
-            }
+                this.yLastBounce = platforms.y;
+
+
+            // @ts-ignore
+                let event = new CustomEvent("bkb-bounce", {detail: platforms}); 
+            document.dispatchEvent(event);
             
+            }
         });
 
-        /*if(this.Y >= 700) {
-            this.Y -= 700
-        } else if(this.Y != 700) {
+        this.preY = this.Y
 
-        }*/
-        
+        if(this.Y >= 700) {
+            
+        } 
     }
 
     render() {
         ctx.save();
+        ctx.fillStyle = "black"
         ctx.beginPath();
         ctx.arc(this.X, this.Y, this.radius, 0, Math.PI * 2, true);
         ctx.fill();
-
         ctx.restore();
     }
 };
@@ -109,11 +124,32 @@ class Game {
     constructor(kb) {
         this.kb=kb;
         this.speed= 0;
-        this.maxSpeed= 100;
+        this.maxSpeed= 5.25;
         this.accelerationRate = 5;
         this.accelerationInterval = 100;
         this.timeSinceLastAcceleration = 0;
+   
+        this.score = 0;
+        this.scoreX= canvas.width - 130
+        this.scoreY = 80;
+
+
+        this.wireUpListeners();
+
+        this.bgImage = new Image();
+        this.bgImage.src = "/images/squares_glow.png";
+
+        // w / 600 = 2048 / 1152
+
+        this.imageHeight = canvas.height;
+        this.imageWidth = (canvas.height * this.bgImage.width / this.bgImage.height)
+        this.imageX = 0;
     }
+    
+
+    /**
+     * @param {number} timeElapsed
+     */
     update(timeElapsed) {
         this.timeSinceLastAcceleration += timeElapsed;
 
@@ -122,7 +158,6 @@ class Game {
             ) {
                 this.speed += this.accelerationRate;
                 this.timeSinceLastAcceleration = 0;
-
         }
 
         if(this.kb.isBraking) {
@@ -133,14 +168,50 @@ class Game {
         if(!this.kb.isAccelerating && !this.kb.isBraking &&
             this.timeSinceLastAcceleration >= this.accelerationInterval
             && this.speed > 0) {
-            //decelerate
             this.speed -= this.accelerationRate;
             this.timeSinceLastAcceleration = 0;
+       
         }
 
+        this.imageX -= this.speed * .08;
+        if(this.imageX + this.imageWidth <= 0) {
+            this.imageX = 0;
+        }
     }
 
-    render() {}
+    render() {
+        ctx.save();
+        ctx.drawImage(this.bgImage, this.imageX, 0, this.imageWidth, this.imageHeight)
+        ctx.drawImage(this.bgImage, this.imageX + this.imageWidth, 0, this.imageWidth, this.imageHeight)
+
+        ctx.fillStyle = "hsla(120, 100%, 10%, 0.2";
+        ctx.fillRect(0, 0, canvas.width,  canvas.height)
+        
+        ctx.restore();
+
+        ctx.save();
+		ctx.fillStyle = "white";
+		ctx.strokeStyle = "black";
+		ctx.font = "90px serif";
+
+		ctx.fillText(`${this.score}`, this.scoreX, this.scoreY);
+		ctx.strokeText(`${this.score}`, this.scoreX, this.scoreY);
+		ctx.restore();
+    }
+
+    wireUpListeners() {
+        document.addEventListener("bkb-bounce", (e) =>  {
+            //@ts-ignore
+            let p = e.detail;
+
+
+            if(p.isScorable && !p.isScored) {
+                this.score += 1;
+                p.isScored = true;
+            }
+             
+        })
+    }
 };
 
 class Tracer {
@@ -162,6 +233,9 @@ class Tracer {
         this.fadeInterval = 100;
         this.timeSincLastFade = 0;
     }
+        /**
+     * @param {number} timeElapsed
+     */
         update(timeElapsed) {
         this.timeSincLastFade += timeElapsed;
         this.x -= this.g.speed;
@@ -176,7 +250,7 @@ class Tracer {
 
     render() {
         ctx.save();
-        ctx.fillStyle = `hsla(0, 0%, 50%, ${this.opacity})`;
+        ctx.fillStyle = `hsla(0, 100%, 50%, ${this.opacity})`;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.b.radius/2, 0, Math.PI*2, true) 
         ctx.fill();
@@ -212,6 +286,7 @@ update(timeElapsed) {
 }
 
 render() {
+    if(!this.isVisible) return;
     ctx.save();
     ctx.fillStyle = "hsl(0, 10%, 10%)";
     ctx.fillRect(this.x, this.y, this.width, this.height) 
@@ -229,12 +304,13 @@ class ScorePlatform {
         this.height = canvas.height;
         this.width = 32;
 
-        this.x = 2;
-        this.y = canvas.height /2;
+        this.x = 0;
+        this.y = canvas.height /1.5;
 
         this.isVisible = true;
 
         this.isScored = false;
+        this.isScorable = true;
     }
     /**
      * @param {number} timeElapsed
@@ -245,6 +321,7 @@ update(timeElapsed) {
 }
 
 render() {
+    if(!this.isVisible) return;
     ctx.save();
     ctx.fillStyle = "hsl(120, 100%, 50%)";
     ctx.fillRect(this.x, this.y, this.width, this.height) 
@@ -252,18 +329,44 @@ render() {
     }
 }
 
+class Manager {
+    constructor(platforms, game) {
+        this.platforms = platforms;
+        this.game = game;
+
+    }
+
+    update() {
+        let lastPlatform = platforms[platforms.length - 1]
+        let furthestX = lastPlatform.x + lastPlatform.width;
+    
+        while(furthestX <= canvas.width * 2) {
+            let spacer = Math.random() * 168 + 32
+            
+            let nextPlatformType = Math.random();
+
+            let p;
+
+            if(nextPlatformType <= 0.1) {
+                p= new SafePlatform(this.game);
+            } else { 
+                p= new ScorePlatform(this.game);
+            }
+
+            p.x = furthestX + spacer;
+            this.platforms.push(p);
+            furthestX += spacer + p.width;
+        }
+    }
+}
+
+
+
 let kb= new KeyboardState();
 let game= new Game(kb);
 
-let p1 = new ScorePlatform(game);
-let p2 = new ScorePlatform(game);
-let p3 = new ScorePlatform(game);
-
-p1.x = 400 + 75;
-p2.x = p1.x + 120
-p3.x = p2.x + 135
-
-let platforms = [new SafePlatform(game), p1, p2, p3]
+let platforms = [new SafePlatform(game)]
+let pm = new Manager(platforms, game)
 let player = new Bal(platforms); 
 let tracers = [new Tracer(player, game)]
 
@@ -271,30 +374,44 @@ let tracers = [new Tracer(player, game)]
 let currentTime = 0;
 
 
+/**
+ * @param {number} timestamp
+ */
 function gameLoop(timestamp) {
     let timeElapsed = timestamp - currentTime;
     currentTime = timestamp;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-
-    game.update(timeElapsed);
-    game.render();
-
     tracers.push(new Tracer(player, game));
+
+    pm.update();
+
+    let gameObjects = [game, ...tracers, player, ...platforms]
+
+    gameObjects.forEach((o) => {
+        o.update(timeElapsed)
+        o.render();
+    })
+
+
+     game.update(timeElapsed);
+     game.render();
+
+    
 
     tracers.forEach((t) => {
         t.update(timeElapsed);
         t.render();
-    })
+    }) 
 
-    platforms.forEach((p) => {
-        p.update(timeElapsed);
-        p.render();
-    })
+     platforms.forEach((p) => {
+         p.update(timeElapsed);
+         p.render();
+     }) 
 
     player.update(timeElapsed);
-    player.render();
+    player.render(); 
 
     tracers = tracers.filter(t => t.isVisible);
 
