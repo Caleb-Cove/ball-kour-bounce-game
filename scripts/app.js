@@ -10,7 +10,7 @@ canvas.height = 700;
  * @param {number} pt
  */
 function parabollicEasing(pt) {
-    let x = pt * 4 - 2;
+    let x = pt * 2.5 - 2;
     let y= x * x*-1 +4; 
     return y/4;
 }
@@ -86,9 +86,9 @@ class Bal {
 
         this.platforms.forEach((platforms) => {
             let inside = this.rightSide >= platforms.x && this.leftSide <= platforms.x + platforms.width
-            let platformBelow = inside && (this.Y < platforms.x || this.preY <platforms.y)
+            let platformBelow = inside && (this.Y < platforms.x || this.preY < platforms.y)
 
-            if(isMovingDown && inside && this.Y+this.radius >= platforms.y) {
+            if(isMovingDown && platformBelow && this.Y+this.radius >= platforms.y) {
                 this.timeSinceLastBounce=0;
                 this.yLastBounce = platforms.y;
 
